@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "lib": [
+            "esnext"
+        ],
+        "inlineSourceMap": false,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "noImplicitReturns": true,
+        "noUnusedParameters": true,
+        "noUnusedLocals": true,
+        "strict": true,
+        "removeComments": false,
+        "declaration": true,
+        "outDir": "out"
+    },
+    "compileOnSave": true
+}
