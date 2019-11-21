@@ -5,12 +5,11 @@ import { Reader } from "./zip.js";
 
 consume(readFileStream("zip.zip")).then((data) => {
     const reader = new Reader(data);
-    reader.forEach((entry) => {
+    for (const entry of reader) {
         p(entry);
         const contents = utf8Decode(entry.getData());
         p({ contents });
-    });
-    reader.iterator();
+    }
     p(reader.toObject());
     p(reader.toObject("utf8"));
 });

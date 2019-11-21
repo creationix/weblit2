@@ -1,6 +1,8 @@
 // Tom Robinson
 // Kris Kowal
 
+// Ported to TypeScript by TimCaswell 2019
+
 import { fstatSync, readSync } from "./fs-uv.js";
 import { inflate } from "./inflate.js";
 import { assert, utf8Decode } from "./utils.js";
@@ -92,10 +94,12 @@ interface IDescriptor {
 }
 
 export class Reader {
+    private count: number;
     private source: BufferSource | FdSource;
     private offset: number;
 
     constructor(data: Uint8Array | number) {
+        this.count = 0;
         if (ArrayBuffer.isView(data)) {
             this.source = new BufferSource(data);
         } else {
@@ -385,72 +389,52 @@ export class Reader {
         return descriptor;
     }
 
-    public iterator() {
-        const stream = this;
+    public [Symbol.iterator]() {
 
         // find the end record and read it
-        stream.locateEndOfCentralDirectoryRecord();
-        const endRecord = stream.readEndOfCentralDirectoryRecord();
+        this.locateEndOfCentralDirectoryRecord();
+        const endRecord = this.readEndOfCentralDirectoryRecord();
 
         // seek to the beginning of the central directory
-        stream.seek(endRecord.central_dir_offset);
+        this.seek(endRecord.central_dir_offset);
 
-        let count = endRecord.central_dir_disk_records;
+        this.count = endRecord.central_dir_disk_records;
 
-        return {
-            next() {
-                if ((count--) === 0) {
-                    // tslint:disable-next-line: no-string-throw
-                    throw "stop-iteration";
-                }
-
-                // read the central directory header
-                const centralHeader = stream.readCentralDirectoryFileHeader();
-
-                // save our new position so we can restore it
-                const saved = stream.position();
-
-                // seek to the local header and read it
-                stream.seek(centralHeader.local_file_header_offset);
-                const localHeader = stream.readLocalFileHeader();
-
-                // dont read the content just save the position for later use
-                const start = stream.position();
-
-                // seek back to the next central directory header
-                stream.seek(saved);
-
-                return new Entry(
-                    localHeader, stream, start,
-                    centralHeader.compressed_size,
-                    centralHeader.compression_method,
-                    centralHeader.mode);
-            },
-        };
+        return this;
     }
 
-    public forEach(block: (entry: Entry) => void, context?: any) {
-        const iterator = this.iterator();
-        let next;
-        while (true) {
-            try {
-                next = iterator.next();
-            } catch (exception) {
-                if (exception === "stop-iteration") {
-                    break;
-                }
-                if (exception === "skip-iteration") {
-                    continue;
-                }
-                throw exception;
-            }
-            block.call(context, next);
+    public next(): IteratorResult<Entry> {
+        if ((this.count--) === 0) {
+            return { done: true, value: undefined };
         }
+
+        // read the central directory header
+        const centralHeader = this.readCentralDirectoryFileHeader();
+
+        // save our new position so we can restore it
+        const saved = this.position();
+
+        // seek to the local header and read it
+        this.seek(centralHeader.local_file_header_offset);
+        const localHeader = this.readLocalFileHeader();
+
+        // dont read the content just save the position for later use
+        const start = this.position();
+
+        // seek back to the next central directory header
+        this.seek(saved);
+
+        const value = new Entry(
+            localHeader, this, start,
+            centralHeader.compressed_size,
+            centralHeader.compression_method,
+            centralHeader.mode);
+        return { value };
     }
 
     public toObject(charset?: string) {
         const object: any = {};
-        this.forEach((entry: Entry) => {
+        for (const entry of this) {
             if (entry.isFile()) {
                 let data: Uint8Array | string = entry.getData();
                 if (charset) {
@@ -459,7 +443,7 @@ export class Reader {
                 }
                 object[entry.getName()] = data;
             }
-        });
+        }
         return object;
     }
 
