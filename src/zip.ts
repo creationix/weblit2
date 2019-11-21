@@ -400,7 +400,8 @@ export class Reader {
         return {
             next() {
                 if ((count--) === 0) {
-                    throw new Error("stop-iteration");
+                    // tslint:disable-next-line: no-string-throw
+                    throw "stop-iteration";
                 }
 
                 // read the central directory header
