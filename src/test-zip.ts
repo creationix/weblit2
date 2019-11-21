@@ -12,4 +12,15 @@ consume(readFileStream("zip.zip")).then((data) => {
     }
     p(reader.toObject());
     p(reader.toObject("utf8"));
+
+    print("GETTING just README");
+    p(extractFile(reader, "README"));
 });
+
+function extractFile(reader: Reader, filename: string): Uint8Array | void {
+    for (const entry of reader) {
+        if (entry.isFile() && entry.getName() === filename) {
+            return entry.getData();
+        }
+    }
+}
