@@ -67,9 +67,8 @@ export function write(fd: number, data: Uint8Array, position: number, onWrite: O
  * This ensures that the backing array buffer is not larger than the view.
  */
 export function workaroundPrep(data: Uint8Array): Uint8Array {
-    return data;
-    // return data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
-    //     ? data : data.slice();
+    return data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
+        ? data : data.slice();
 }
 
 /**
