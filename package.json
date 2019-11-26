@@ -1,11 +1,12 @@
 {
   "name": "weblit2",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A simple HTTP Server Framework for MagicScript",
   "main": "out/weblit.js",
   "module": "out/weblit.js",
   "dependencies": {},
   "devDependencies": {
+    "tsc-watch": "^4.0.0",
     "tslint": "^5.20.1",
     "typescript": "^3.7.2"
   },

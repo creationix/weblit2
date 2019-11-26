@@ -24,8 +24,8 @@ export interface IParsable {
     /** Read the next data chunk with optional size limit. */
     read(max?: number): Promise<Uint8Array | undefined>;
 
-    /** Read into buffer till terminator is found and included in result. */
-    readTo(buffer: Uint8Array, terminator?: string): Promise<Uint8Array | undefined>;
+    /** Put unused read data back to front of read stream. */
+    unRead(buffer: Uint8Array): void;
 }
 
 export interface IHeaders extends Iterable<[string, string]> {

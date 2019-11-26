@@ -1,6 +1,6 @@
 import { Headers } from "./Headers.js";
 import { HttpEvent, IParsable, IReadableStream } from "./interfaces";
-import { assert, toParsable, utf8Decode } from "./utils.js";
+import { assert, readTo, toParsable, utf8Decode } from "./utils.js";
 
 export class HttpDecoder implements IReadableStream<HttpEvent> {
     private source: IParsable;
@@ -20,7 +20,7 @@ export class HttpDecoder implements IReadableStream<HttpEvent> {
     private async* main() {
         const headStorageBuffer = new Uint8Array(8 * 1024);
         while (true) {
-            const headBuffer = await this.source.readTo(headStorageBuffer, "\r\n\r\n");
+            const headBuffer = await readTo(this.source, headStorageBuffer, "\r\n\r\n");
             if (!headBuffer) { return; }
             const [first, ...rest] = utf8Decode(headBuffer).trim().split("\r\n");
             const match = first.match(/^(?:HTTP\/(\d\.\d) (\d+) ([^\r\n]+)|([A-Z]+) ([^ ]+) HTTP\/(\d\.\d))/);
@@ -106,14 +106,14 @@ async function* countedDecoder(source: IParsable, contentLength: number) {
 async function* chunkedDecoder(source: IParsable) {
     const lengthBuffer = new Uint8Array(10);
     while (true) {
-        const lengthChunk = await source.readTo(lengthBuffer, "\r\n");
+        const lengthChunk = await readTo(source, lengthBuffer, "\r\n");
         assert(lengthChunk, "HTTP Decoder: Unexpected end of stream while reading chunk length header.");
 
         const lengthMatch = utf8Decode(lengthChunk).match(/[0-9a-f]+/i);
         assert(lengthMatch, "HTTP Decoder: Malformed chunk length header.");
 
         const length = parseInt(lengthMatch[0], 16);
-        const chunk = await source.readTo(new Uint8Array(length + 2));
+        const chunk = await readTo(source, new Uint8Array(length + 2));
         assert(chunk, "HTTP Decoder: Unexpected end of stream while reading chunk body.");
         assert(chunk[length] === 0x0d && chunk[length + 1] === 0x0a,
             "HTTP Decoder: Malformed chunk trailer");

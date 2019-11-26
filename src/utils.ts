@@ -1,4 +1,5 @@
 import { AsyncDataStream, DataStream, IParsable } from "./interfaces.js";
+// import { p } from "./pretty-print.js";
 
 /**
  * lua-style assert helper.
@@ -403,7 +404,7 @@ export function noJoin<T>(a: T, b: T): T {
     throw new Error(`Cannot join parts: ${a} + ${b}`);
 }
 
-export function toParsable(iter: AsyncIterableIterator<Uint8Array>): IParsable {
+export function toParsable(iter: AsyncIterator<Uint8Array>): IParsable {
 
     let extra: Uint8Array | undefined;
 
@@ -420,7 +421,6 @@ export function toParsable(iter: AsyncIterableIterator<Uint8Array>): IParsable {
             if (!extra) { await grow(); }
             if (!extra) { return; }
 
-            // p("reading", { max, "extra.length": extra.length });
             let value: Uint8Array;
             if (max && max < extra.length) {
                 value = extra.subarray(0, max);
@@ -429,48 +429,45 @@ export function toParsable(iter: AsyncIterableIterator<Uint8Array>): IParsable {
                 value = extra;
                 extra = undefined;
             }
+            // p("onRead", { max, value, "value.length": value.length, extra, "extra.length": extra && extra.length });
             return value;
         },
 
-        async readTo(buffer: Uint8Array, terminator?: string): Promise<Uint8Array | undefined> {
-            let left = buffer.length;
-            let written = 0;
-
-            while (left > 0) {
-                if (!extra) { await grow(); }
-                if (!extra) { return; }
-
-                const data = extra.length > left
-                    ? extra.subarray(0, left)
-                    : extra;
-                // p("readTo2", { left, extra: extra && extra.length, data: data && data.length });
-                // p("writing", { buffer, data, written, extra })
-                buffer.set(data, written);
-                const oldWritten = written;
-                written += data.length;
-                extra = extra.length > left
-                    ? extra.subarray(left)
-                    : undefined;
-                left -= data.length;
-
-                if (terminator) {
-                    // If the last chunk didn't match, we need to re-search it's last bits in case
-                    // the terminator is split across boundaries.
-                    const start = Math.max(0, oldWritten - terminator.length + 1);
-                    // no sense in searching past the written to part.
-                    let end = written;
-                    const index = indexOf(buffer, terminator, start, end);
-                    if (index >= 0) {
-                        end = index + terminator.length;
-                        extra = uint8Add(extra, buffer.subarray(end, written));
-                        return buffer.subarray(0, end);
-                    } else if (left === 0) {
-                        throw new Error("Terminator never found in time");
-                    }
-                }
-            }
-            // p("readto", { left, written, extra, buffer })
-            return buffer;
+        unRead(data: Uint8Array): void {
+            extra = uint8Add(data, extra);
         },
     };
+}
+
+/** Read into buffer till terminator is found and included in result. */
+export async function readTo(
+    source: IParsable, buffer: Uint8Array, terminator?: string): Promise<Uint8Array | undefined> {
+    let left = buffer.length;
+    let written = 0;
+
+    while (left > 0) {
+        const data = await source.read(left);
+        if (!data) { return; }
+
+        buffer.set(data, written);
+        const oldWritten = written;
+        written += data.length;
+        left -= data.length;
+
+        if (terminator) {
+            // If the last chunk didn't match, we need to re-search it's last bits in case
+            // the terminator is split across boundaries.
+            const start = Math.max(0, oldWritten - terminator.length + 1);
+            const index = indexOf(buffer, terminator, start, written);
+            if (index >= 0) {
+                const end = index + terminator.length;
+                // Put back the extra data we have read to the front of extra.
+                source.unRead(data.subarray(end));
+                return buffer.subarray(0, end);
+            } else if (left === 0) {
+                throw new Error("Terminator never found in time");
+            }
+        }
+    }
+    return buffer;
 }

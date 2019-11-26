@@ -1,4 +1,6 @@
-import { assert, flatten, utf8Decode, utf8Encode } from "./utils.js";
+import { p } from "./pretty-print.js";
+import { sha1 } from "./sha1.js";
+import { assert, consume, utf8Encode } from "./utils.js";
 import { autoHeaders } from "./weblit-autoheaders.js";
 import { logger } from "./weblit-logger.js";
 import { serveFiles } from "./weblit-static.js";
@@ -19,13 +21,31 @@ server.route({ method: "GET", path: "/greet/:name" }, (req) => ({
     body: `Hello ${req.params.name}\n`,
 }));
 
+server.route({ method: "PUT", path: "/sha1" }, async (req) => {
+    assert(req.body, "Body missing in PUT");
+
+    // Buffer the request body into memory as a single Uint8Array
+    const reqBody = await consume(req.body as AsyncIterableIterator<Uint8Array>);
+
+    return {
+        status: 200,
+        headers: {
+            "Content-Type": req.headers.get("Content-Type") || "application/octet-stream",
+            "Content-Length": reqBody.length,
+            "ETag": `"${sha1(reqBody)}"`,
+        },
+        body: reqBody,
+    };
+});
+
 // PUT a zip file to this route to see it's contents sent back as JSON.
 // Test with curl -i http://localhost:8080/unzip -T zip.zip
 server.route({ method: "PUT", path: "/unzip" }, async (req) => {
     assert(req.body, "Body missing in PUT");
 
     // Buffer the request body into memory as a single Uint8Array
-    const reqBody = await flatten(req.body);
+    const reqBody = await consume(req.body as AsyncIterableIterator<Uint8Array>);
+
     // Pass the zip file contents to the zip reader.
     const zip = new Reader(reqBody);
 
@@ -35,7 +55,11 @@ server.route({ method: "PUT", path: "/unzip" }, async (req) => {
         if (entry.isFile()) {
             const name = entry.getName();
             const data = entry.getData();
-            object[name] = utf8Decode(data);
+            object[name] = {
+                sha1: sha1(data),
+                length: data.length,
+            };
+            p(name, object[name]);
         }
     }
 
